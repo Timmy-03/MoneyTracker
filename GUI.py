@@ -2,7 +2,7 @@ from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QTableWidget, QTableWidgetItem, QPushButton, QLineEdit, QDateEdit,
-    QLabel, QHeaderView, QMessageBox, QFormLayout, QComboBox
+    QLabel, QHeaderView, QMessageBox, QFormLayout, QComboBox, QCheckBox
 )
 from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtCore import QDate, Qt
@@ -70,11 +70,12 @@ class ExpenseTrackerApp(QMainWindow):
 
         self.date_edit = QDateEdit(calendarPopup=True)
         self.date_edit.setDate(QDate.currentDate())
+        self.date_edit.setDisplayFormat("yyyy-MM-dd")
         self.desc_edit = QLineEdit()
         self.cat_edit = QLineEdit()
         self.amount_edit = QLineEdit()
 
-        self.form_layout.addRow(QLabel("Type:"), self.type_combo)  # <-- Add to form
+        self.form_layout.addRow(QLabel("Type:"), self.type_combo)
         self.form_layout.addRow(QLabel("Date:"), self.date_edit)
         self.form_layout.addRow(QLabel("Description:"), self.desc_edit)
         self.form_layout.addRow(QLabel("Category:"), self.cat_edit)
@@ -242,46 +243,55 @@ class ExpenseTrackerApp(QMainWindow):
         self.search_category_edit = QLineEdit()
         self.search_category_edit.setPlaceholderText("Filter by category...")
 
-        self.search_date_edit = QLineEdit()
-        self.search_date_edit.setPlaceholderText("Filter by date (YYYY-MM-DD)...")
+        self.date_filter_check = QCheckBox("Filter by Date:")
+        self.search_date_edit = QDateEdit(calendarPopup=True)
+        self.search_date_edit.setDate(QDate.currentDate())
+        self.search_date_edit.setDisplayFormat("yyyy-MM-dd")
+        self.search_date_edit.setEnabled(False)  # Disabled by default
+
+        # Connect checkbox to enable/disable the date editor
+        self.date_filter_check.stateChanged.connect(
+            lambda state: self.search_date_edit.setEnabled(state == Qt.CheckState.Checked.value)
+        )
 
         self.search_button = QPushButton("Search")
         self.search_button.clicked.connect(self.perform_search)
-
         self.clear_search_button = QPushButton("Clear Search")
         self.clear_search_button.clicked.connect(self.clear_search)
 
+        # Add the simplified widgets to the layout
         search_layout.addWidget(QLabel("Search:"))
         search_layout.addWidget(self.search_keyword_edit)
         search_layout.addWidget(self.search_category_edit)
+        search_layout.addWidget(self.date_filter_check)
         search_layout.addWidget(self.search_date_edit)
         search_layout.addWidget(self.search_button)
         search_layout.addWidget(self.clear_search_button)
 
-        # Add this new layout to the main vertical layout
         self.layout.addLayout(search_layout)
 
     def perform_search(self):
-        """Executes the search and updates the table with results."""
+        """Executes the search and refreshes the table with sorted results."""
         keyword = self.search_keyword_edit.text().strip()
         category = self.search_category_edit.text().strip()
-        date_str = self.search_date_edit.text().strip()
 
-        # --- ERROR HANDLING BLOCK ---
-        # Check if all search fields are empty after stripping whitespace.
-        if not keyword and not category and not date_str:
-            QMessageBox.warning(self, "Empty Search", "Please enter at least one search term to perform a search.")
-            return  # Stop the function here if the search is empty
+        # Get the single date only if the checkbox is checked
+        filter_date = self.search_date_edit.date().toPyDate() if self.date_filter_check.isChecked() else None
 
-        filtered_transactions = search_transactions(keyword, category, date_str)
+        # Error handling for an empty search
+        if not keyword and not category and not filter_date:
+            QMessageBox.warning(self, "Empty Search", "Please enter a search term or select a date to filter.")
+            return
+
+        filtered_transactions = search_transactions(keyword, category, filter_date)
         self._refresh_table_data(filtered_transactions)
 
     def clear_search(self):
         """Clears search fields and reloads all expenses."""
         self.search_keyword_edit.clear()
         self.search_category_edit.clear()
-        self.search_date_edit.clear()
-        self.load_transactions()  # Reloads the full list
+        self.date_filter_check.setChecked(False)
+        self.load_transactions()
 
     def on_header_clicked(self, logicalIndex):
         """Handles clicks on the table header to sort columns."""

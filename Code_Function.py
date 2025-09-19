@@ -33,25 +33,45 @@ def save_all_transactions(transactions):
         writer.writerows(transactions)
 
 
-def search_transactions(keyword="", category="", date_str=""):
-    """Filters transactions based on keyword, category, and/or date."""
+def search_transactions(keyword="", category="", filter_date=None):
+    """Filters transactions based on a keyword, category, and/or a specific date."""
     all_transactions = get_transactions()
-    if not keyword and not category and not date_str:
+
+    # Check if any filter is active
+    if not keyword and not category and not filter_date:
         return all_transactions
 
     filtered = []
     for transaction in all_transactions:
+        # Assume a match until a criterion fails
         keyword_match = True
         category_match = True
         date_match = True
+
+        # Keyword and Category checks (these are correct)
         if keyword and keyword.lower() not in transaction.get('Description', '').lower():
             keyword_match = False
         if category and category.lower() != transaction.get('Category', '').lower():
             category_match = False
-        if date_str and date_str != transaction.get('Date', ''):
-            date_match = False
+
+        if filter_date:
+            try:
+                trans_date_str = transaction.get('Date', '')
+                if not trans_date_str:
+                    date_match = False
+                else:
+                    # Convert the date string from the CSV to a date object for comparison
+                    trans_date = datetime.datetime.strptime(trans_date_str, '%Y-%m-%d').date()
+                    # Check for an exact match with the filter_date object
+                    if trans_date != filter_date:
+                        date_match = False
+            except ValueError:
+                date_match = False # Malformed date in CSV cannot match
+
+        # If all criteria are met, add the transaction to the list
         if keyword_match and category_match and date_match:
             filtered.append(transaction)
+
     return filtered
 
 def sort_transactions_by_date(transactions, descending=False):
